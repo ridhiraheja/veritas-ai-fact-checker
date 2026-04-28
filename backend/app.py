@@ -2,19 +2,22 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 import google.generativeai as genai
+import os
 
 # ✅ Initialize Flask app FIRST
 app = Flask(__name__)
 CORS(app)
 
 # 🔑 Google API Key
-genai.configure(api_key="AIzaSyCcMxRo7TalGgzhlBI746gUYVZmFbpKTNE")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCcMxRo7TalGgzhlBI746gUYVZmFbpKTNE")
+genai.configure(api_key=GEMINI_API_KEY)
 
 # ✅ Working model
 model = genai.GenerativeModel("models/gemini-flash-latest")
 
 # 🗄️ MongoDB Connection (FIXED FORMAT)
-client_db = MongoClient("mongodb+srv://ridhiraheja:ridhi24@cluster0.xtijuvx.mongodb.net/")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://ridhiraheja:ridhi24@cluster0.xtijuvx.mongodb.net/")
+client_db = MongoClient(MONGO_URI)
 db = client_db["chatbot"]
 collection = db["history"]
 
