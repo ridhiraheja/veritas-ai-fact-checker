@@ -37,6 +37,10 @@ Verdict: True / False / Uncertain
 Confidence: (percentage)
 Justification: 2-3 lines explanation
 
+Follow-ups:
+1. [First related question to explore further]
+2. [Second related question to explore further]
+
 Statement: {statement}
 """
 

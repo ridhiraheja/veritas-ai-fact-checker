@@ -46,12 +46,13 @@ export default function Dashboard() {
     }
   }, [isLoaded, user]);
 
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  const sendMessage = async (overrideText) => {
+    const textToSend = typeof overrideText === "string" ? overrideText : input;
+    if (!textToSend.trim()) return;
 
-    const userMessage = { role: "user", text: input };
+    const userMessage = { role: "user", text: textToSend };
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    if (typeof overrideText !== "string") setInput("");
     setLoading(true);
 
     try {
@@ -59,13 +60,27 @@ export default function Dashboard() {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://veritas-ai-fact-checker.onrender.com";
 
       const res = await axios.post(`${backendUrl}/fact-check`, {
-        statement: input,
+        statement: textToSend,
         email: email
       });
 
+      const rawText = res.data.result || "";
+      let text = rawText;
+      let followUps = [];
+
+      if (rawText && rawText.includes("Follow-ups:")) {
+        const parts = rawText.split("Follow-ups:");
+        text = parts[0].trim();
+        const followUpText = parts[1].trim();
+        followUps = followUpText.split("\n")
+          .map(line => line.replace(/^\d+\.\s*/, "").trim())
+          .filter(line => line.length > 0 && !line.startsWith("["));
+      }
+
       const botMessage = {
         role: "bot",
-        text: res.data.error ? `Error: ${res.data.error}` : res.data.result,
+        text: res.data.error ? `Error: ${res.data.error}` : text,
+        followUps: followUps,
       };
 
       setMessages((prev) => [...prev, botMessage]);
@@ -195,7 +210,7 @@ export default function Dashboard() {
                 ].map((suggestion, i) => (
                   <button
                     key={i}
-                    onClick={() => setInput(suggestion)}
+                    onClick={() => sendMessage(suggestion)}
                     className="p-4 bg-white/60 border border-[#E2E8F0] rounded-xl text-sm text-[#475569] hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-[#3B82F6]/50 transition-all text-left flex items-center justify-between group"
                   >
                     <span>{suggestion}</span>
@@ -214,7 +229,7 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
                   className={`max-w-[85%] md:max-w-[75%] p-5 rounded-[2rem] whitespace-pre-wrap text-[15px] leading-relaxed shadow-sm ${
@@ -225,6 +240,20 @@ export default function Dashboard() {
                 >
                   {msg.text}
                 </div>
+                {msg.followUps && msg.followUps.length > 0 && i === messages.length - 1 && (
+                  <div className="flex flex-wrap gap-2 mt-3 ml-2">
+                    {msg.followUps.map((suggestion, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => sendMessage(suggestion)}
+                        className="px-4 py-2 bg-white/60 border border-[#E2E8F0] rounded-full text-xs font-medium text-[#475569] hover:bg-white hover:text-[#3B82F6] hover:border-[#3B82F6]/50 transition-colors flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Sparkles className="w-3 h-3 text-[#3B82F6]" />
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
