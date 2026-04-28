@@ -29,7 +29,7 @@ export default function Dashboard() {
     if (!isLoaded || !user) return;
     try {
       const email = user.primaryEmailAddress?.emailAddress || "anonymous";
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://veritas-ai-fact-checker.onrender.com";
       
       const res = await axios.get(`${backendUrl}/history?email=${encodeURIComponent(email)}`);
       if (Array.isArray(res.data)) {
@@ -56,7 +56,7 @@ export default function Dashboard() {
 
     try {
       const email = user?.primaryEmailAddress?.emailAddress || "anonymous";
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://veritas-ai-fact-checker.onrender.com";
 
       const res = await axios.post(`${backendUrl}/fact-check`, {
         statement: input,
