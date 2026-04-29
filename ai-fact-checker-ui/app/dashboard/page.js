@@ -210,11 +210,20 @@ export default function Dashboard() {
           ) : (
             history.map((item, idx) => (
               <div key={idx} className="p-3 bg-white rounded-xl shadow-sm border border-[#F1F5F9] hover:border-[#E2E8F0] transition-colors cursor-default">
-                <p className="text-sm text-[#0F172A] font-medium line-clamp-2 mb-1">"{item.statement}"</p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  {item.response?.includes("Verdict: True") && <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle className="w-3 h-3"/> True</span>}
-                  {item.response?.includes("Verdict: False") && <span className="text-xs font-semibold text-rose-600 flex items-center gap-1"><XCircle className="w-3 h-3"/> False</span>}
-                  {item.response?.includes("Verdict: Uncertain") && <span className="text-xs font-semibold text-amber-600 flex items-center gap-1"><HelpCircle className="w-3 h-3"/> Uncertain</span>}
+                <div className="flex justify-between items-start mb-1">
+                  <p className="text-sm text-[#0F172A] font-medium line-clamp-2">"{item.statement}"</p>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-1.5">
+                    {item.response?.includes("Verdict: True") && <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle className="w-3 h-3"/> True</span>}
+                    {item.response?.includes("Verdict: False") && <span className="text-xs font-semibold text-rose-600 flex items-center gap-1"><XCircle className="w-3 h-3"/> False</span>}
+                    {item.response?.includes("Verdict: Uncertain") && <span className="text-xs font-semibold text-amber-600 flex items-center gap-1"><HelpCircle className="w-3 h-3"/> Uncertain</span>}
+                  </div>
+                  {item.timestamp && (
+                    <span className="text-[10px] text-[#94A3B8] font-medium">
+                      {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
                 </div>
               </div>
             ))

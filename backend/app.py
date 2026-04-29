@@ -164,10 +164,12 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             }), 500
 
         # 💾 Save to history
+        from datetime import datetime
         save_to_history({
             "email": email,
             "statement": statement,
-            "response": result
+            "response": result,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
         return jsonify({"result": result})
