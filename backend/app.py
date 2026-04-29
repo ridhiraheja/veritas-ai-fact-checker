@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Using a stable flash model for high quota
-STABLE_MODEL_NAME = "gemini-flash-latest"
+STABLE_MODEL_NAME = "gemini-1.5-flash"
 HAS_VALID_KEY = False
 model = None
 
@@ -154,11 +154,25 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
                 response = generate_with_retry(prompt)
                 result = response.text
             except Exception as e:
-                # Fallback to another model name if first one fails
-                print(f"Primary model failed, trying fallback: {e}")
-                fallback_model = genai.GenerativeModel("gemini-1.5-flash")
-                response = fallback_model.generate_content(prompt)
-                result = response.text
+                # Fallback to other model names if first one fails
+                print(f"Primary model ({STABLE_MODEL_NAME}) failed: {e}")
+                fallback_names = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-pro"]
+                
+                last_err = e
+                for name in fallback_names:
+                    try:
+                        print(f"Trying fallback model: {name}")
+                        fallback_model = genai.GenerativeModel(name)
+                        response = fallback_model.generate_content(prompt)
+                        result = response.text
+                        print(f"Success with fallback: {name}")
+                        return jsonify({"result": result})
+                    except Exception as fe:
+                        print(f"Fallback {name} failed: {fe}")
+                        last_err = fe
+                
+                # If all fallbacks fail, re-raise the last error
+                raise last_err
         except Exception as e:
             error_msg = str(e)
             print(f"AI Generation failed: {error_msg}")
