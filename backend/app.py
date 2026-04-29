@@ -111,7 +111,8 @@ def health():
     return jsonify({
         "status": "online",
         "db": "connected" if db_available else "fallback",
-        "api": "configured" if HAS_VALID_KEY else "missing"
+        "api": "configured" if HAS_VALID_KEY else "missing",
+        "version": "2.1-dynamic-fix"
     })
 
 # 🔹 FACT CHECK API
