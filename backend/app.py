@@ -95,8 +95,8 @@ def get_history(email):
     return []
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10)
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=15)
 )
 def generate_with_retry(prompt):
     if not HAS_VALID_KEY:
@@ -152,10 +152,14 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             
             # Categorize the error for the user
             friendly_error = "Fact-checking service unavailable"
-            if "quota" in error_msg.lower() or "429" in error_msg:
-                friendly_error = "API quota exceeded. Please wait a moment and try again."
-            elif "key" in error_msg.lower() or "401" in error_msg:
+            lower_msg = error_msg.lower()
+            
+            if any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
+                friendly_error = "API quota exceeded. Please wait a moment or try again later."
+            elif any(x in lower_msg for x in ["key", "401", "unauthorized", "api_key"]):
                 friendly_error = "Invalid API key configuration."
+            elif any(x in lower_msg for x in ["notfound", "not found", "model", "404"]):
+                friendly_error = f"AI model ({STABLE_MODEL_NAME}) not found or unavailable."
             
             return jsonify({
                 "error": friendly_error,
