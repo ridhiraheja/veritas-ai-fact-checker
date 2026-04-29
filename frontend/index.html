@@ -216,8 +216,17 @@ async function sendMessage() {
     });
 
     const data = await res.json();
-    const result = data.result;
+    
+    if (data.status === "error") {
+        addMessage(`❌ Error: ${data.error}`, "bot");
+        if (data.details) {
+            console.error("Backend Error Details:", data.details);
+        }
+        input.value = "";
+        return;
+    }
 
+    const result = data.result;
     const verdict = result.match(/Verdict: (.*)/)?.[1];
     const confidence = result.match(/Confidence: (.*)/)?.[1];
 

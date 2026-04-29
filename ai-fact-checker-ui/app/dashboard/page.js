@@ -13,10 +13,30 @@ export default function Dashboard() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  const [backendStatus, setBackendStatus] = useState("checking"); // "checking", "online", "offline"
   const { isLoaded, user } = useUser();
   const chatRef = useRef(null);
 
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 
+  // Check backend health
+  const checkHealth = async () => {
+    try {
+      await axios.get(`${backendUrl}/health`);
+      setBackendStatus("online");
+    } catch (err) {
+      setBackendStatus("offline");
+    }
+  };
+
+  useEffect(() => {
+    checkHealth();
+    // Re-check every 10 seconds if offline
+    const interval = setInterval(() => {
+      if (backendStatus !== "online") checkHealth();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [backendStatus]);
 
   // Auto scroll
   useEffect(() => {
@@ -30,7 +50,6 @@ export default function Dashboard() {
     if (!isLoaded || !user) return;
     try {
       const email = user.primaryEmailAddress?.emailAddress || "anonymous";
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
       console.log("Fetching history from:", backendUrl);
       
       const res = await axios.get(`${backendUrl}/history?email=${encodeURIComponent(email)}`);
@@ -76,18 +95,20 @@ export default function Dashboard() {
     refreshSuggestions();
   };
 
-  const sendMessage = async (overrideText) => {
+  const sendMessage = async (overrideText, retryCount = 0) => {
     const textToSend = typeof overrideText === "string" ? overrideText : input;
     if (!textToSend.trim()) return;
 
-    const userMessage = { role: "user", text: textToSend };
-    setMessages((prev) => [...prev, userMessage]);
-    if (typeof overrideText !== "string") setInput("");
+    if (retryCount === 0) {
+      const userMessage = { role: "user", text: textToSend };
+      setMessages((prev) => [...prev, userMessage]);
+      if (typeof overrideText !== "string") setInput("");
+    }
+    
     setLoading(true);
 
     try {
       const email = user?.primaryEmailAddress?.emailAddress || "anonymous";
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
       console.log("Sending fact-check to:", backendUrl);
 
       const res = await axios.post(`${backendUrl}/fact-check`, {
@@ -104,12 +125,29 @@ export default function Dashboard() {
       };
 
       setMessages((prev) => [...prev, botMessage]);
-      fetchHistory(); // Refresh history to update sidebar & stats
+      fetchHistory(); // Refresh history
+      setBackendStatus("online");
     } catch (err) {
+      const serverError = err.response?.data?.error;
+      const isQuotaError = serverError?.toLowerCase().includes("quota") || err.response?.status === 429;
+
+      // Silent retry for quota errors
+      if (isQuotaError && retryCount < 1) {
+        console.log("Quota hit, retrying in 3s...");
+        setTimeout(() => sendMessage(textToSend, retryCount + 1), 3000);
+        return;
+      }
+
+      let displayError = "Error connecting to server. Make sure the backend is running.";
+      if (serverError) displayError = `Error: ${serverError}`;
+      else if (err.message) displayError = `Network Error: ${err.message}`;
+
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "Error connecting to server. Please try again later." },
+        { role: "bot", text: displayError },
       ]);
+      
+      if (!err.response) setBackendStatus("offline");
     }
 
     setLoading(false);
@@ -151,6 +189,14 @@ export default function Dashboard() {
             <Sparkles className="w-4 h-4 text-blue-300 group-hover:rotate-12 transition-transform" />
             New Fact Check
           </button>
+        </div>
+
+        {/* Backend Status Indicator */}
+        <div className="px-4 py-2 border-b border-[#E2E8F0]/50 flex items-center gap-2">
+           <div className={`w-2 h-2 rounded-full ${backendStatus === 'online' ? 'bg-emerald-500 animate-pulse' : backendStatus === 'checking' ? 'bg-amber-400' : 'bg-rose-500'}`} />
+           <span className="text-[10px] font-bold uppercase tracking-widest text-[#64748B]">
+             System: {backendStatus === 'online' ? 'Connected' : backendStatus === 'checking' ? 'Connecting...' : 'Offline'}
+           </span>
         </div>
 
         <div className="p-4 flex items-center gap-2 text-[#475569] border-b border-[#E2E8F0]/50">
@@ -283,6 +329,14 @@ export default function Dashboard() {
               <span className="text-sm font-medium ml-2">Analyzing</span>
             </motion.div>
           )}
+
+          {backendStatus === 'offline' && !loading && (
+            <div className="flex justify-center mt-4">
+              <div className="bg-rose-50 text-rose-600 px-4 py-2 rounded-full text-xs font-bold border border-rose-100 shadow-sm animate-pulse">
+                Backend is currently offline. Please start the server.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input */}
@@ -290,14 +344,15 @@ export default function Dashboard() {
           <div className="relative flex items-center bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-full p-2 border border-[#E2E8F0]">
             <input
               className="flex-1 px-6 py-3 bg-transparent outline-none text-[#0F172A] placeholder:text-[#94A3B8]"
-              placeholder="Enter a statement to verify..."
+              placeholder={backendStatus === 'online' ? "Enter a statement to verify..." : "Waiting for engine..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              disabled={backendStatus !== 'online'}
             />
             <button
               onClick={sendMessage}
-              disabled={!input.trim()}
+              disabled={!input.trim() || backendStatus !== 'online'}
               className="bg-[#1E3A8A] text-white p-3 rounded-full hover:bg-[#0F172A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center mr-1"
             >
               <Send className="w-5 h-5 ml-1" />

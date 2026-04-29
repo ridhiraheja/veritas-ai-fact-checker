@@ -15,13 +15,22 @@ CORS(app)
 # 🔑 Google API Key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 HAS_VALID_KEY = False
-if GEMINI_API_KEY and "expired" not in GEMINI_API_KEY.lower():
+model = None
+
+# Using a stable flash model for high quota
+STABLE_MODEL_NAME = "gemini-flash-latest"
+
+if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel(STABLE_MODEL_NAME)
         HAS_VALID_KEY = True
-    except Exception:
+        print(f"Initialized Gemini model: {STABLE_MODEL_NAME}")
+    except Exception as e:
+        print(f"Error initializing Gemini model: {e}")
         HAS_VALID_KEY = False
+else:
+    print("Warning: GEMINI_API_KEY not found in environment.")
 
 # 🗄️ MongoDB Connection
 MONGO_URI = os.environ.get("MONGO_URI")
@@ -91,20 +100,17 @@ def get_history(email):
 )
 def generate_with_retry(prompt):
     if not HAS_VALID_KEY:
-        raise ValueError("No valid API key")
+        raise ValueError("No valid API key configured.")
     return model.generate_content(prompt)
 
-def get_mock_response(statement):
-    # Simple logic to provide a realistic mock response
-    verdicts = ["True", "False", "Uncertain"]
-    import random
-    verdict = random.choice(verdicts)
-    confidence = random.randint(70, 99)
-    
-    return f"""Verdict: {verdict}
-Confidence: {confidence}%
-Justification: This is a simulated response because the Gemini API key is currently expired or invalid. In a production environment, this would be verified against real-time data.
-"""
+# 🔹 HEALTH API
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "online",
+        "db": "connected" if db_available else "fallback",
+        "api": "configured" if HAS_VALID_KEY else "missing"
+    })
 
 # 🔹 FACT CHECK API
 @app.route("/fact-check", methods=["POST"])
@@ -114,6 +120,9 @@ def fact_check():
         statement = data.get("statement", "")
         email = data.get("email", "anonymous")
         print(f"Received request from {email}: {statement}")
+
+        if not statement.strip():
+            return jsonify({"error": "Please provide a statement to check."}), 400
 
         prompt = f"""
 You are an AI fact-checker.
@@ -129,14 +138,30 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
 """
 
         try:
-            if HAS_VALID_KEY:
-                response = generate_with_retry(prompt)
-                result = response.text
-            else:
-                result = get_mock_response(statement)
+            if not HAS_VALID_KEY or model is None:
+                return jsonify({
+                    "error": "Fact-checking service is not configured (API key missing or invalid).",
+                    "status": "error"
+                }), 503
+
+            response = generate_with_retry(prompt)
+            result = response.text
         except Exception as e:
-            print(f"AI Generation failed: {e}. Using mock.")
-            result = get_mock_response(statement)
+            error_msg = str(e)
+            print(f"AI Generation failed: {error_msg}")
+            
+            # Categorize the error for the user
+            friendly_error = "Fact-checking service unavailable"
+            if "quota" in error_msg.lower() or "429" in error_msg:
+                friendly_error = "API quota exceeded. Please wait a moment and try again."
+            elif "key" in error_msg.lower() or "401" in error_msg:
+                friendly_error = "Invalid API key configuration."
+            
+            return jsonify({
+                "error": friendly_error,
+                "details": error_msg,
+                "status": "error"
+            }), 500
 
         # 💾 Save to history
         save_to_history({
@@ -148,7 +173,8 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
         return jsonify({"result": result})
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        print(f"Unhandled error: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 # 🔹 HISTORY API
 @app.route("/history", methods=["GET"])
@@ -156,6 +182,7 @@ def history():
     email = request.args.get("email")
     chats = get_history(email)
     return jsonify(chats)
+
 
 # 🚀 Run server
 if __name__ == "__main__":
