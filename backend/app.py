@@ -215,4 +215,7 @@ def clear_history():
 
 # 🚀 Run server
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Use the port assigned by the cloud provider (Render/Heroku/etc.) or default to 5000
+    port = int(os.environ.get("PORT", 5000))
+    # host='0.0.0.0' is required for cloud deployment and local network access
+    app.run(debug=True, host='0.0.0.0', port=port)
