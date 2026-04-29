@@ -12,25 +12,27 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# 🔑 Google API Key
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Using a stable flash model for high quota
+STABLE_MODEL_NAME = "gemini-flash-latest"
 HAS_VALID_KEY = False
 model = None
 
-# Using a stable flash model for high quota
-STABLE_MODEL_NAME = "gemini-flash-latest"
+def init_gemini():
+    global model, HAS_VALID_KEY
+    key = os.environ.get("GEMINI_API_KEY")
+    if key:
+        try:
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel(STABLE_MODEL_NAME)
+            HAS_VALID_KEY = True
+            print(f"Initialized Gemini model: {STABLE_MODEL_NAME}")
+            return True
+        except Exception as e:
+            print(f"Error initializing Gemini model: {e}")
+            HAS_VALID_KEY = False
+    return False
 
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(STABLE_MODEL_NAME)
-        HAS_VALID_KEY = True
-        print(f"Initialized Gemini model: {STABLE_MODEL_NAME}")
-    except Exception as e:
-        print(f"Error initializing Gemini model: {e}")
-        HAS_VALID_KEY = False
-else:
-    print("Warning: GEMINI_API_KEY not found in environment.")
+init_gemini()
 
 # 🗄️ MongoDB Connection
 MONGO_URI = os.environ.get("MONGO_URI")
@@ -139,13 +141,23 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
 
         try:
             if not HAS_VALID_KEY or model is None:
-                return jsonify({
-                    "error": "Fact-checking service is not configured (API key missing or invalid).",
-                    "status": "error"
-                }), 503
+                # Try to re-init in case env var was added after startup
+                if not init_gemini():
+                    return jsonify({
+                        "error": "Fact-checking service is not configured (API key missing or invalid).",
+                        "status": "error"
+                    }), 503
 
-            response = generate_with_retry(prompt)
-            result = response.text
+            print(f"Attempting generation with {STABLE_MODEL_NAME}...")
+            try:
+                response = generate_with_retry(prompt)
+                result = response.text
+            except Exception as e:
+                # Fallback to another model name if first one fails
+                print(f"Primary model failed, trying fallback: {e}")
+                fallback_model = genai.GenerativeModel("gemini-1.5-flash")
+                response = fallback_model.generate_content(prompt)
+                result = response.text
         except Exception as e:
             error_msg = str(e)
             print(f"AI Generation failed: {error_msg}")
