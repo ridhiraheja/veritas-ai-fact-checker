@@ -104,10 +104,6 @@ def get_mock_response(statement):
     return f"""Verdict: {verdict}
 Confidence: {confidence}%
 Justification: This is a simulated response because the Gemini API key is currently expired or invalid. In a production environment, this would be verified against real-time data.
-
-Follow-ups:
-1. How can I verify this manually?
-2. What are the primary sources for this claim?
 """
 
 # 🔹 FACT CHECK API
@@ -128,6 +124,8 @@ Confidence: (percentage)
 Justification: 2-3 lines explanation
 
 Statement: {statement}
+
+IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up questions, suggestions, or additional information.
 """
 
         try:

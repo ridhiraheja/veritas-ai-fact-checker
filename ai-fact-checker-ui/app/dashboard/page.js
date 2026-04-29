@@ -48,23 +48,33 @@ export default function Dashboard() {
     }
   }, [isLoaded, user]);
 
+  const allSuggestions = [
+    "Vaccines cause autism.",
+    "The Earth is flat.",
+    "Humans only use 10% of their brains.",
+    "Albert Einstein failed math.",
+    "Goldfish have a 3-second memory.",
+    "The Great Wall of China is visible from space.",
+    "Drinking 8 glasses of water a day is mandatory.",
+    "Bulls are enraged by the color red.",
+    "Napoleon was extremely short.",
+    "Bananas grow on trees."
+  ];
+
+  const refreshSuggestions = () => {
+    const shuffled = [...allSuggestions].sort(() => Math.random() - 0.5);
+    setSuggestions(shuffled.slice(0, 4));
+  };
+
   // Set random suggestions on mount
   useEffect(() => {
-    const allSuggestions = [
-      "Vaccines cause autism.",
-      "The Earth is flat.",
-      "Humans only use 10% of their brains.",
-      "Albert Einstein failed math.",
-      "Goldfish have a 3-second memory.",
-      "The Great Wall of China is visible from space.",
-      "Drinking 8 glasses of water a day is mandatory.",
-      "Bulls are enraged by the color red.",
-      "Napoleon was extremely short.",
-      "Bananas grow on trees."
-    ];
-    const shuffled = [...allSuggestions].sort(() => 0.5 - Math.random());
-    setSuggestions(shuffled.slice(0, 4));
+    refreshSuggestions();
   }, []);
+
+  const startNewChat = () => {
+    setMessages([]);
+    refreshSuggestions();
+  };
 
   const sendMessage = async (overrideText) => {
     const textToSend = typeof overrideText === "string" ? overrideText : input;
@@ -131,6 +141,16 @@ export default function Dashboard() {
             <ShieldCheck className="w-5 h-5 text-[#3B82F6]" />
             <h1 className="font-serif text-xl font-semibold text-[#0F172A]">Veritas</h1>
           </div>
+        </div>
+
+        <div className="p-4 border-b border-[#E2E8F0]">
+          <button 
+            onClick={startNewChat}
+            className="w-full flex items-center justify-center gap-2 bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-[#0F172A] transition-all shadow-sm group"
+          >
+            <Sparkles className="w-4 h-4 text-blue-300 group-hover:rotate-12 transition-transform" />
+            New Fact Check
+          </button>
         </div>
 
         <div className="p-4 flex items-center gap-2 text-[#475569] border-b border-[#E2E8F0]/50">
