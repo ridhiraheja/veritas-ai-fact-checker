@@ -1,6 +1,14 @@
+import os
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
-client = MongoClient("mongodb+srv://ridhiraheja:ridhi24@cluster0.xtijuvx.mongodb.net/")
+load_dotenv()
+
+MONGO_URI = os.environ.get("MONGO_URI")
+if not MONGO_URI:
+    raise ValueError("MONGO_URI environment variable is not set!")
+
+client = MongoClient(MONGO_URI)
 db = client["chatbot"]
 collection = db["history"]
 

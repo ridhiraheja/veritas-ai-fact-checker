@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [history, setHistory] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
   const { isLoaded, user } = useUser();
   const chatRef = useRef(null);
 
@@ -29,7 +30,8 @@ export default function Dashboard() {
     if (!isLoaded || !user) return;
     try {
       const email = user.primaryEmailAddress?.emailAddress || "anonymous";
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://veritas-ai-fact-checker.onrender.com";
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
+      console.log("Fetching history from:", backendUrl);
       
       const res = await axios.get(`${backendUrl}/history?email=${encodeURIComponent(email)}`);
       if (Array.isArray(res.data)) {
@@ -46,6 +48,24 @@ export default function Dashboard() {
     }
   }, [isLoaded, user]);
 
+  // Set random suggestions on mount
+  useEffect(() => {
+    const allSuggestions = [
+      "Vaccines cause autism.",
+      "The Earth is flat.",
+      "Humans only use 10% of their brains.",
+      "Albert Einstein failed math.",
+      "Goldfish have a 3-second memory.",
+      "The Great Wall of China is visible from space.",
+      "Drinking 8 glasses of water a day is mandatory.",
+      "Bulls are enraged by the color red.",
+      "Napoleon was extremely short.",
+      "Bananas grow on trees."
+    ];
+    const shuffled = [...allSuggestions].sort(() => 0.5 - Math.random());
+    setSuggestions(shuffled.slice(0, 4));
+  }, []);
+
   const sendMessage = async (overrideText) => {
     const textToSend = typeof overrideText === "string" ? overrideText : input;
     if (!textToSend.trim()) return;
@@ -57,7 +77,8 @@ export default function Dashboard() {
 
     try {
       const email = user?.primaryEmailAddress?.emailAddress || "anonymous";
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://veritas-ai-fact-checker.onrender.com";
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
+      console.log("Sending fact-check to:", backendUrl);
 
       const res = await axios.post(`${backendUrl}/fact-check`, {
         statement: textToSend,
@@ -65,22 +86,11 @@ export default function Dashboard() {
       });
 
       const rawText = res.data.result || "";
-      let text = rawText;
-      let followUps = [];
-
-      if (rawText && rawText.includes("Follow-ups:")) {
-        const parts = rawText.split("Follow-ups:");
-        text = parts[0].trim();
-        const followUpText = parts[1].trim();
-        followUps = followUpText.split("\n")
-          .map(line => line.replace(/^\d+\.\s*/, "").trim())
-          .filter(line => line.length > 0 && !line.startsWith("["));
-      }
+      let errorMessage = res.data.error;
 
       const botMessage = {
         role: "bot",
-        text: res.data.error ? `Error: ${res.data.error}` : text,
-        followUps: followUps,
+        text: errorMessage ? `Error: ${errorMessage}` : rawText,
       };
 
       setMessages((prev) => [...prev, botMessage]);
@@ -202,12 +212,7 @@ export default function Dashboard() {
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mt-8">
-                {[
-                  "Vaccines cause autism.",
-                  "The Earth is flat.",
-                  "Humans only use 10% of their brains.",
-                  "Albert Einstein failed math."
-                ].map((suggestion, i) => (
+                {suggestions.map((suggestion, i) => (
                   <button
                     key={i}
                     onClick={() => sendMessage(suggestion)}
@@ -240,20 +245,6 @@ export default function Dashboard() {
                 >
                   {msg.text}
                 </div>
-                {msg.followUps && msg.followUps.length > 0 && i === messages.length - 1 && (
-                  <div className="flex flex-wrap gap-2 mt-3 ml-2">
-                    {msg.followUps.map((suggestion, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => sendMessage(suggestion)}
-                        className="px-4 py-2 bg-white/60 border border-[#E2E8F0] rounded-full text-xs font-medium text-[#475569] hover:bg-white hover:text-[#3B82F6] hover:border-[#3B82F6]/50 transition-colors flex items-center gap-1.5 shadow-sm"
-                      >
-                        <Sparkles className="w-3 h-3 text-[#3B82F6]" />
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </motion.div>
             ))}
           </AnimatePresence>
