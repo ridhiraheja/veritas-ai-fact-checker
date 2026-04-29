@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
-import { ShieldCheck, Send, Sparkles, ArrowLeft, ArrowRight, History, CheckCircle, XCircle, HelpCircle, LogOut } from "lucide-react";
+import { ShieldCheck, Send, Sparkles, ArrowLeft, ArrowRight, History, CheckCircle, XCircle, HelpCircle, LogOut, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useUser, UserButton, SignOutButton } from "@clerk/nextjs";
 
@@ -93,6 +93,18 @@ export default function Dashboard() {
   const startNewChat = () => {
     setMessages([]);
     refreshSuggestions();
+  };
+
+  const clearHistory = async () => {
+    if (!confirm("Are you sure you want to clear your entire fact-check history?")) return;
+    
+    try {
+      const email = user?.primaryEmailAddress?.emailAddress || "anonymous";
+      await axios.post(`${backendUrl}/clear-history`, { email });
+      setHistory([]);
+    } catch (err) {
+      alert("Failed to clear history");
+    }
   };
 
   const sendMessage = async (overrideText, retryCount = 0) => {
@@ -199,9 +211,20 @@ export default function Dashboard() {
            </span>
         </div>
 
-        <div className="p-4 flex items-center gap-2 text-[#475569] border-b border-[#E2E8F0]/50">
-          <History className="w-4 h-4" />
-          <span className="text-xs font-bold uppercase tracking-wider">Fact-Check History</span>
+        <div className="p-4 flex items-center justify-between text-[#475569] border-b border-[#E2E8F0]/50">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Fact-Check History</span>
+          </div>
+          {history.length > 0 && (
+            <button 
+              onClick={clearHistory}
+              className="text-[#94A3B8] hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-rose-50"
+              title="Clear all history"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">

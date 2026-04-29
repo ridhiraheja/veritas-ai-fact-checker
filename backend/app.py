@@ -185,6 +185,33 @@ def history():
     chats = get_history(email)
     return jsonify(chats)
 
+@app.route("/clear-history", methods=["POST"])
+def clear_history():
+    try:
+        data = request.json
+        email = data.get("email", "anonymous")
+        
+        if db_available and collection is not None:
+            query = {"email": email} if email else {}
+            collection.delete_many(query)
+        
+        # Also clear local file if it exists
+        if os.path.exists(LOCAL_HISTORY_FILE):
+            if email and email != "anonymous":
+                try:
+                    with open(LOCAL_HISTORY_FILE, "r") as f:
+                        history = json.load(f)
+                    new_history = [c for c in history if c.get("email") != email]
+                    with open(LOCAL_HISTORY_FILE, "w") as f:
+                        json.dump(new_history, f)
+                except:
+                    pass
+            else:
+                os.remove(LOCAL_HISTORY_FILE)
+                
+        return jsonify({"status": "success", "message": "History cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # 🚀 Run server
 if __name__ == "__main__":
