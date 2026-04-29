@@ -18,14 +18,28 @@ HAS_VALID_KEY = False
 model = None
 
 def init_gemini():
-    global model, HAS_VALID_KEY
+    global model, HAS_VALID_KEY, STABLE_MODEL_NAME
     key = os.environ.get("GEMINI_API_KEY")
     if key:
         try:
             genai.configure(api_key=key)
+            
+            # Dynamically find an available flash model
+            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            print(f"Available models: {available_models}")
+            
+            # Priority list for selection
+            for preferred in ["models/gemini-1.5-flash", "models/gemini-flash-latest", "models/gemini-2.0-flash", "models/gemini-pro"]:
+                if preferred in available_models:
+                    STABLE_MODEL_NAME = preferred
+                    break
+            else:
+                if available_models:
+                    STABLE_MODEL_NAME = available_models[0]
+            
             model = genai.GenerativeModel(STABLE_MODEL_NAME)
             HAS_VALID_KEY = True
-            print(f"Initialized Gemini model: {STABLE_MODEL_NAME}")
+            print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
             return True
         except Exception as e:
             print(f"Error initializing Gemini model: {e}")
@@ -154,25 +168,13 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
                 response = generate_with_retry(prompt)
                 result = response.text
             except Exception as e:
-                # Fallback to other model names if first one fails
-                print(f"Primary model ({STABLE_MODEL_NAME}) failed: {e}")
-                fallback_names = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
-                
-                last_err = e
-                for name in fallback_names:
-                    try:
-                        print(f"Trying fallback model: {name}")
-                        fallback_model = genai.GenerativeModel(name)
-                        response = fallback_model.generate_content(prompt)
-                        result = response.text
-                        print(f"Success with fallback: {name}")
-                        return jsonify({"result": result})
-                    except Exception as fe:
-                        print(f"Fallback {name} failed: {fe}")
-                        last_err = fe
-                
-                # If all fallbacks fail, re-raise the last error
-                raise last_err
+                # If it failed, maybe the model became unavailable, try to re-init
+                print(f"Generation failed with {STABLE_MODEL_NAME}: {e}. Retrying with discovery...")
+                if init_gemini():
+                     response = model.generate_content(prompt)
+                     result = response.text
+                else:
+                     raise e
         except Exception as e:
             error_msg = str(e)
             print(f"AI Generation failed: {error_msg}")
