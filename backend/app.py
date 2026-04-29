@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Using a stable flash model for high quota
-STABLE_MODEL_NAME = "models/gemini-1.5-flash"
+STABLE_MODEL_NAME = "gemini-flash-latest"
 HAS_VALID_KEY = False
 model = None
 
@@ -156,7 +156,7 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             except Exception as e:
                 # Fallback to other model names if first one fails
                 print(f"Primary model ({STABLE_MODEL_NAME}) failed: {e}")
-                fallback_names = ["models/gemini-flash-latest", "models/gemini-2.0-flash", "models/gemini-pro"]
+                fallback_names = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
                 
                 last_err = e
                 for name in fallback_names:
