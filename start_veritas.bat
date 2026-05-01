@@ -21,7 +21,7 @@ echo [3/3] Waiting for servers to initialize...
 timeout /t 8 /nobreak > nul
 
 echo Opening Veritas Dashboard...
-start http://192.168.1.2:3000/dashboard
+start http://10.35.12.126:3000/dashboard
 
 echo.
 echo ==========================================
