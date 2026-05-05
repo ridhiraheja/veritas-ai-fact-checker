@@ -244,7 +244,7 @@ export default function Dashboard() {
                   </div>
                   {item.timestamp && (
                     <span className="text-[10px] text-[#94A3B8] font-medium">
-                      {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(item.timestamp.includes(' ') ? item.timestamp.replace(' ', 'T') : item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                 </div>

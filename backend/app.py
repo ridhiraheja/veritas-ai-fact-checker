@@ -4,8 +4,9 @@ from pymongo import MongoClient
 import google.generativeai as genai
 import os
 import json
-from dotenv import load_dotenv
+from datetime import datetime, timezone
 from tenacity import retry, stop_after_attempt, wait_exponential
+from dotenv import load_dotenv
 
 load_dotenv()
 # ✅ Initialize Flask app FIRST
@@ -197,12 +198,11 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             }), 500
 
         # 💾 Save to history
-        from datetime import datetime
         save_to_history({
             "email": email,
             "statement": statement,
             "response": result,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         return jsonify({"result": result})
