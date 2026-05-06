@@ -246,7 +246,7 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
                 friendly_error = "API quota exceeded. Please wait a moment or try again later."
             elif "no valid api key configured" in lower_msg:
                 friendly_error = "Fact-checking service is not configured (API key missing)."
-            elif any(x in lower_msg for x in ["401", "unauthorized"]):
+            elif any(x in lower_msg for x in ["401", "unauthorized", "key", "invalid"]):
                 friendly_error = "Invalid API key configuration."
             elif any(x in lower_msg for x in ["notfound", "not found", "model", "404"]):
                 friendly_error = f"AI model ({STABLE_MODEL_NAME}) not found. Raw error: {error_msg}"
