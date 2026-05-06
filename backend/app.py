@@ -177,7 +177,7 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             print(f"AI Generation failed: {error_msg}")
             
             # Categorize the error for the user
-            friendly_error = "Fact-checking service unavailable"
+            friendly_error = f"Fact-checking service unavailable: {error_msg}"
             lower_msg = error_msg.lower()
             
             if any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
