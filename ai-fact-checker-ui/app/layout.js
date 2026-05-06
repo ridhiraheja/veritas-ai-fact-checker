@@ -1,5 +1,6 @@
 import { Inter, Playfair_Display } from "next/font/google";
 import { ClerkProvider } from '@clerk/nextjs';
+import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,9 +24,12 @@ export default function RootLayout({ children }) {
       <html
         lang="en"
         className={`${inter.variable} ${playfair.variable} h-full antialiased`}
+        suppressHydrationWarning
       >
         <body className="min-h-full flex flex-col font-sans bg-background text-foreground">
-          {children}
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            {children}
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

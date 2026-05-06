@@ -2,11 +2,17 @@
 
 import { motion } from "framer-motion";
 import { SignIn, useAuth } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import { ShieldCheck, Sparkles } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LandingPage() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { theme, systemTheme } = useTheme();
+  
+  const currentTheme = theme === "system" ? systemTheme : theme;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -29,7 +35,12 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen flex font-sans bg-[#F8FAFC] relative overflow-hidden">
+    <div className="min-h-screen flex font-sans bg-[#F8FAFC] dark:bg-[#0F172A] relative overflow-hidden">
+      
+      {/* Theme Toggle */}
+      <div className="absolute top-6 right-6 z-50">
+        <ThemeToggle />
+      </div>
       
       {/* Dynamic Background Pattern */}
       <div 
@@ -41,7 +52,7 @@ export default function LandingPage() {
       />
 
       {/* Left side - Login Form */}
-      <div className="w-full lg:w-[45%] flex flex-col justify-center px-8 sm:px-12 lg:px-20 relative z-10 bg-white/50 backdrop-blur-3xl border-r border-white/20 shadow-2xl">
+      <div className="w-full lg:w-[45%] flex flex-col justify-center px-8 sm:px-12 lg:px-20 relative z-10 bg-white/50 dark:bg-[#1E293B]/50 backdrop-blur-3xl border-r border-white/20 dark:border-slate-800/50 shadow-2xl">
         
         <motion.div
           variants={containerVariants}
@@ -54,10 +65,10 @@ export default function LandingPage() {
             <div className="w-14 h-14 bg-[#1E3A8A] rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-900/20">
               <ShieldCheck className="w-7 h-7 text-white" />
             </div>
-            <h1 className="font-serif text-4xl lg:text-5xl font-semibold text-[#0F172A] mb-3">
+            <h1 className="font-serif text-4xl lg:text-5xl font-semibold text-[#0F172A] dark:text-white mb-3">
               Veritas
             </h1>
-            <p className="text-[#475569] text-sm font-medium tracking-wide uppercase">
+            <p className="text-[#475569] dark:text-slate-400 text-sm font-medium tracking-wide uppercase">
               Your trusted source for facts
             </p>
           </motion.div>
@@ -75,22 +86,23 @@ export default function LandingPage() {
                   forceRedirectUrl="/dashboard"
                   fallbackRedirectUrl="/dashboard"
                   appearance={{
+                    baseTheme: currentTheme === 'dark' ? dark : undefined,
                     elements: {
                       rootBox: "w-full",
-                      card: "shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-[#E2E8F0]/50 rounded-[2rem] w-full",
-                      headerTitle: "font-serif text-[#0F172A]",
+                      card: "shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-[#E2E8F0]/50 dark:border-slate-700/50 rounded-[2rem] w-full",
+                      headerTitle: "font-serif text-[#0F172A] dark:text-white",
                       headerSubtitle: "hidden",
-                      socialButtonsBlockButton: "border-[#E2E8F0] hover:bg-[#F8FAFC]",
-                      formButtonPrimary: "bg-[#1E3A8A] hover:bg-[#0F172A]",
-                      footerActionLink: "text-[#1E3A8A] hover:text-[#0F172A]"
+                      socialButtonsBlockButton: "border-[#E2E8F0] dark:border-slate-700 hover:bg-[#F8FAFC] dark:hover:bg-slate-800",
+                      formButtonPrimary: "bg-[#1E3A8A] hover:bg-[#0F172A] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB]",
+                      footerActionLink: "text-[#1E3A8A] hover:text-[#0F172A] dark:text-[#3B82F6] dark:hover:text-blue-400"
                     }
                   }} 
                 />
               ) : (
-                <div className="bg-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-[#E2E8F0]/50 w-full text-center">
-                  <h3 className="font-serif text-2xl font-semibold text-[#0F172A] mb-2">Welcome Back!</h3>
-                  <p className="text-[#475569] text-sm mb-6">You are already signed in to Veritas.</p>
-                  <Link href="/dashboard" className="inline-flex items-center justify-center w-full bg-[#1E3A8A] text-white py-3.5 rounded-xl font-semibold hover:bg-[#0F172A] shadow-md transition-all gap-2 group">
+                <div className="bg-white dark:bg-[#1E293B] p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-[#E2E8F0]/50 dark:border-slate-700/50 w-full text-center">
+                  <h3 className="font-serif text-2xl font-semibold text-[#0F172A] dark:text-white mb-2">Welcome Back!</h3>
+                  <p className="text-[#475569] dark:text-slate-400 text-sm mb-6">You are already signed in to Veritas.</p>
+                  <Link href="/dashboard" className="inline-flex items-center justify-center w-full bg-[#1E3A8A] dark:bg-[#3B82F6] text-white py-3.5 rounded-xl font-semibold hover:bg-[#0F172A] dark:hover:bg-[#2563EB] shadow-md transition-all gap-2 group">
                     Continue to Chat
                   </Link>
                 </div>
