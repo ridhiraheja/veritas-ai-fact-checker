@@ -14,34 +14,52 @@ app = Flask(__name__)
 CORS(app)
 
 # Using a stable flash model for high quota
-STABLE_MODEL_NAME = "gemini-flash-latest"
+STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
 HAS_VALID_KEY = False
 model = None
 
-INIT_ERROR = ""
-
 def init_gemini():
-    global model, HAS_VALID_KEY, STABLE_MODEL_NAME, INIT_ERROR
+    global model, HAS_VALID_KEY, STABLE_MODEL_NAME
     key = os.environ.get("GEMINI_API_KEY")
-    if not key:
-        INIT_ERROR = "GEMINI_API_KEY environment variable is missing"
-        return False
-    try:
-        genai.configure(api_key=key)
-        
-        # Bypass list_models() to prevent 400 Location errors in Southeast Asia
-        STABLE_MODEL_NAME = "models/gemini-flash-latest"
-        
-        model = genai.GenerativeModel(STABLE_MODEL_NAME)
-        HAS_VALID_KEY = True
-        INIT_ERROR = ""
-        print(f"Hardcoded Gemini model for region compatibility: {STABLE_MODEL_NAME}")
-        return True
-    except Exception as e:
-        print(f"Error initializing Gemini model: {e}")
-        INIT_ERROR = f"Initialization error: {str(e)}"
+    if key:
+        key = key.strip().strip("'\"")
+        try:
+            genai.configure(api_key=key)
+            
+            # Dynamically find an available flash model
+            try:
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                print(f"Available models: {available_models}")
+                
+                # Priority list for selection (high quota / high availability lite models first)
+                for preferred in ["models/gemini-2.5-flash-lite", "models/gemini-flash-lite-latest", "models/gemini-2.0-flash", "models/gemini-flash-latest", "models/gemini-3-flash-preview", "models/gemini-pro"]:
+                    if preferred in available_models:
+                        STABLE_MODEL_NAME = preferred
+                        break
+                else:
+                    if available_models:
+                        STABLE_MODEL_NAME = available_models[0]
+            except Exception as list_err:
+                print(f"Warning: could not list models dynamically ({list_err}). Using default STABLE_MODEL_NAME.")
+                STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
+            
+            model = genai.GenerativeModel(STABLE_MODEL_NAME)
+            HAS_VALID_KEY = True
+            print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
+            return True
+        except Exception as e:
+            print(f"Error initializing Gemini model: {e}")
+            err_msg = str(e).lower()
+            if any(x in err_msg for x in ["key", "401", "unauthorized", "api_key"]):
+                HAS_VALID_KEY = False
+            else:
+                # If it's a transient rate limit or network issue, the key itself is still configured
+                HAS_VALID_KEY = True
+                STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
+                model = genai.GenerativeModel(STABLE_MODEL_NAME)
+    else:
         HAS_VALID_KEY = False
-    return False
+    return HAS_VALID_KEY
 
 init_gemini()
 
@@ -108,13 +126,63 @@ def get_history(email):
     return []
 
 @retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=2, max=15)
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=1, max=4),
+    reraise=True
 )
 def generate_with_retry(prompt):
-    if not HAS_VALID_KEY:
+    if not HAS_VALID_KEY or model is None:
         raise ValueError("No valid API key configured.")
     return model.generate_content(prompt)
+
+def generate_with_fallback(prompt):
+    global STABLE_MODEL_NAME, model
+    
+    # Try the currently selected stable model first
+    try:
+        print(f"Attempting generation with primary model: {STABLE_MODEL_NAME}")
+        return generate_with_retry(prompt)
+    except Exception as e:
+        err_msg = str(e)
+        print(f"Primary model {STABLE_MODEL_NAME} failed: {err_msg}")
+        
+        # If it's an authorization/authentication issue, do not attempt fallback models
+        lower_err = err_msg.lower()
+        if any(x in lower_err for x in ["key", "401", "unauthorized", "api_key"]) and "no valid api key configured" not in lower_err:
+            raise e
+            
+        # Try fallback models in priority order (high availability lite models first)
+        fallbacks = [
+            "models/gemini-2.5-flash-lite",
+            "models/gemini-flash-lite-latest",
+            "models/gemini-2.0-flash",
+            "models/gemini-2.5-flash",
+            "models/gemini-flash-latest",
+            "models/gemini-3-flash-preview",
+            "models/gemini-1.5-flash",
+            "models/gemini-pro"
+        ]
+        
+        # Remove the current STABLE_MODEL_NAME from fallbacks to avoid repeating
+        if STABLE_MODEL_NAME in fallbacks:
+            fallbacks.remove(STABLE_MODEL_NAME)
+            
+        for fallback_model_name in fallbacks:
+            print(f"Attempting fallback generation with model: {fallback_model_name}")
+            try:
+                fallback_model = genai.GenerativeModel(fallback_model_name)
+                response = fallback_model.generate_content(prompt)
+                
+                # Promote fallback model to primary so future requests are fast
+                STABLE_MODEL_NAME = fallback_model_name
+                model = fallback_model
+                print(f"Successfully switched and promoted to fallback model: {STABLE_MODEL_NAME}")
+                return response
+            except Exception as fe:
+                print(f"Fallback model {fallback_model_name} failed: {fe}")
+                
+        # If all fallbacks failed, raise the original exception
+        raise e
 
 # 🔹 HEALTH API
 @app.route("/health", methods=["GET"])
@@ -156,33 +224,29 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
                 # Try to re-init in case env var was added after startup
                 if not init_gemini():
                     return jsonify({
-                        "error": f"Fact-checking service is not configured. Details: {INIT_ERROR}",
+                        "error": "Fact-checking service is not configured (API key missing or invalid).",
                         "status": "error"
                     }), 503
 
             print(f"Attempting generation with {STABLE_MODEL_NAME}...")
             try:
-                response = generate_with_retry(prompt)
+                response = generate_with_fallback(prompt)
                 result = response.text
             except Exception as e:
-                # If it failed, maybe the model became unavailable, try to re-init
-                print(f"Generation failed with {STABLE_MODEL_NAME}: {e}. Retrying with discovery...")
-                if init_gemini():
-                     response = model.generate_content(prompt)
-                     result = response.text
-                else:
-                     raise e
+                raise e
         except Exception as e:
             error_msg = str(e)
             print(f"AI Generation failed: {error_msg}")
             
             # Categorize the error for the user
-            friendly_error = f"Fact-checking service unavailable: {error_msg}"
+            friendly_error = "Fact-checking service unavailable"
             lower_msg = error_msg.lower()
             
             if any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
                 friendly_error = "API quota exceeded. Please wait a moment or try again later."
-            elif any(x in lower_msg for x in ["key", "401", "unauthorized", "api_key"]):
+            elif "no valid api key configured" in lower_msg:
+                friendly_error = "Fact-checking service is not configured (API key missing)."
+            elif any(x in lower_msg for x in ["401", "unauthorized"]):
                 friendly_error = "Invalid API key configuration."
             elif any(x in lower_msg for x in ["notfound", "not found", "model", "404"]):
                 friendly_error = f"AI model ({STABLE_MODEL_NAME}) not found. Raw error: {error_msg}"
