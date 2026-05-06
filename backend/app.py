@@ -34,7 +34,7 @@ def init_gemini():
         print(f"Available models: {available_models}")
         
         # Priority list for selection
-        for preferred in ["models/gemini-3-flash-preview", "models/gemini-3.1-pro-preview", "models/gemini-2.0-flash", "models/gemini-flash-latest", "models/gemini-1.5-flash", "models/gemini-pro"]:
+        for preferred in ["models/gemini-1.5-flash", "models/gemini-flash-latest", "models/gemini-2.0-flash", "models/gemini-pro"]:
             if preferred in available_models:
                 STABLE_MODEL_NAME = preferred
                 break
