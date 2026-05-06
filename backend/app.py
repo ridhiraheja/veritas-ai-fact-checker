@@ -29,23 +29,13 @@ def init_gemini():
     try:
         genai.configure(api_key=key)
         
-        # Dynamically find an available flash model
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        print(f"Available models: {available_models}")
-        
-        # Priority list for selection
-        for preferred in ["models/gemini-1.5-flash", "models/gemini-flash-latest", "models/gemini-2.0-flash", "models/gemini-pro"]:
-            if preferred in available_models:
-                STABLE_MODEL_NAME = preferred
-                break
-        else:
-            if available_models:
-                STABLE_MODEL_NAME = available_models[0]
+        # Bypass list_models() to prevent 400 Location errors in Southeast Asia
+        STABLE_MODEL_NAME = "models/gemini-flash-latest"
         
         model = genai.GenerativeModel(STABLE_MODEL_NAME)
         HAS_VALID_KEY = True
         INIT_ERROR = ""
-        print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
+        print(f"Hardcoded Gemini model for region compatibility: {STABLE_MODEL_NAME}")
         return True
     except Exception as e:
         print(f"Error initializing Gemini model: {e}")
