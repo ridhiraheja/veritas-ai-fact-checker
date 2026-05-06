@@ -18,33 +18,39 @@ STABLE_MODEL_NAME = "gemini-flash-latest"
 HAS_VALID_KEY = False
 model = None
 
+INIT_ERROR = ""
+
 def init_gemini():
-    global model, HAS_VALID_KEY, STABLE_MODEL_NAME
+    global model, HAS_VALID_KEY, STABLE_MODEL_NAME, INIT_ERROR
     key = os.environ.get("GEMINI_API_KEY")
-    if key:
-        try:
-            genai.configure(api_key=key)
-            
-            # Dynamically find an available flash model
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            print(f"Available models: {available_models}")
-            
-            # Priority list for selection
-            for preferred in ["models/gemini-1.5-flash", "models/gemini-flash-latest", "models/gemini-2.0-flash", "models/gemini-pro"]:
-                if preferred in available_models:
-                    STABLE_MODEL_NAME = preferred
-                    break
-            else:
-                if available_models:
-                    STABLE_MODEL_NAME = available_models[0]
-            
-            model = genai.GenerativeModel(STABLE_MODEL_NAME)
-            HAS_VALID_KEY = True
-            print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
-            return True
-        except Exception as e:
-            print(f"Error initializing Gemini model: {e}")
-            HAS_VALID_KEY = False
+    if not key:
+        INIT_ERROR = "GEMINI_API_KEY environment variable is missing"
+        return False
+    try:
+        genai.configure(api_key=key)
+        
+        # Dynamically find an available flash model
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        print(f"Available models: {available_models}")
+        
+        # Priority list for selection
+        for preferred in ["models/gemini-3-flash-preview", "models/gemini-3.1-pro-preview", "models/gemini-2.0-flash", "models/gemini-flash-latest", "models/gemini-1.5-flash", "models/gemini-pro"]:
+            if preferred in available_models:
+                STABLE_MODEL_NAME = preferred
+                break
+        else:
+            if available_models:
+                STABLE_MODEL_NAME = available_models[0]
+        
+        model = genai.GenerativeModel(STABLE_MODEL_NAME)
+        HAS_VALID_KEY = True
+        INIT_ERROR = ""
+        print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
+        return True
+    except Exception as e:
+        print(f"Error initializing Gemini model: {e}")
+        INIT_ERROR = f"Initialization error: {str(e)}"
+        HAS_VALID_KEY = False
     return False
 
 init_gemini()
@@ -160,7 +166,7 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
                 # Try to re-init in case env var was added after startup
                 if not init_gemini():
                     return jsonify({
-                        "error": "Fact-checking service is not configured (API key missing or invalid).",
+                        "error": f"Fact-checking service is not configured. Details: {INIT_ERROR}",
                         "status": "error"
                     }), 503
 
