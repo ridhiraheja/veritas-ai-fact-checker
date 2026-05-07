@@ -242,9 +242,9 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             friendly_error = f"Fact-checking service unavailable ({error_msg})"
             lower_msg = error_msg.lower()
             
-            # EMERGENCY PRESENTATION FALLBACK: If API is blocked by region, use mock responses
-            if "location is not supported" in lower_msg:
-                print("Triggering Presentation Fallback Mode due to region block...")
+            # EMERGENCY PRESENTATION FALLBACK: If API is blocked by region or quota, use mock responses
+            if "location is not supported" in lower_msg or any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
+                print("Triggering Presentation Fallback Mode due to API limit/block...")
                 statement_lower = statement.lower().strip()
                 
                 # Pre-calculated responses for the UI's exact suggestions
