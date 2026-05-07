@@ -14,7 +14,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Using a stable flash model for high quota
-STABLE_MODEL_NAME = "models/gemini-1.5-flash"
+STABLE_MODEL_NAME = "models/gemini-flash-latest"
 HAS_VALID_KEY = False
 model = None
 
@@ -32,7 +32,7 @@ def init_gemini():
                 print(f"Available models: {available_models}")
                 
                 # Priority list for selection (high quota / high availability models first)
-                for preferred in ["models/gemini-1.5-flash", "models/gemini-pro", "models/gemini-1.5-pro", "models/gemini-2.5-flash", "models/gemini-2.0-flash"]:
+                for preferred in ["models/gemini-flash-latest", "models/gemini-pro-latest", "models/gemini-2.5-flash", "models/gemini-2.0-flash", "models/gemini-2.5-flash-lite"]:
                     if preferred in available_models:
                         STABLE_MODEL_NAME = preferred
                         break
@@ -41,7 +41,7 @@ def init_gemini():
                         STABLE_MODEL_NAME = available_models[0]
             except Exception as list_err:
                 print(f"Warning: could not list models dynamically ({list_err}). Using default STABLE_MODEL_NAME.")
-                STABLE_MODEL_NAME = "models/gemini-1.5-flash"
+                STABLE_MODEL_NAME = "models/gemini-flash-latest"
             
             model = genai.GenerativeModel(STABLE_MODEL_NAME)
             HAS_VALID_KEY = True
