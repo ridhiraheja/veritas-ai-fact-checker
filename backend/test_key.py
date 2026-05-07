@@ -9,7 +9,7 @@ print(f"API Key found: {API_KEY[:5]}...{API_KEY[-5:] if API_KEY else ''}")
 
 try:
     genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel("gemini-3-flash-preview")
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
     response = model.generate_content("test")
     print("Success! Response received.")
     print(response.text)
