@@ -14,7 +14,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Using a stable flash model for high quota
-STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
+STABLE_MODEL_NAME = "models/gemini-2.5-flash"
 HAS_VALID_KEY = False
 model = None
 
@@ -31,8 +31,8 @@ def init_gemini():
                 available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                 print(f"Available models: {available_models}")
                 
-                # Priority list for selection (high quota / high availability lite models first)
-                for preferred in ["models/gemini-2.5-flash-lite", "models/gemini-flash-lite-latest", "models/gemini-2.0-flash", "models/gemini-flash-latest", "models/gemini-3-flash-preview", "models/gemini-pro"]:
+                # Priority list for selection (high quota / high availability models first)
+                for preferred in ["models/gemini-2.5-flash", "models/gemini-2.5-flash-lite", "models/gemini-2.0-flash", "models/gemini-flash-latest"]:
                     if preferred in available_models:
                         STABLE_MODEL_NAME = preferred
                         break
@@ -41,7 +41,7 @@ def init_gemini():
                         STABLE_MODEL_NAME = available_models[0]
             except Exception as list_err:
                 print(f"Warning: could not list models dynamically ({list_err}). Using default STABLE_MODEL_NAME.")
-                STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
+                STABLE_MODEL_NAME = "models/gemini-2.5-flash"
             
             model = genai.GenerativeModel(STABLE_MODEL_NAME)
             HAS_VALID_KEY = True
@@ -239,7 +239,7 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             print(f"AI Generation failed: {error_msg}")
             
             # Categorize the error for the user
-            friendly_error = "Fact-checking service unavailable"
+            friendly_error = f"Fact-checking service unavailable ({error_msg})"
             lower_msg = error_msg.lower()
             
             if any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
