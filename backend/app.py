@@ -15,51 +15,66 @@ CORS(app)
 
 # Using a stable flash model for high quota
 STABLE_MODEL_NAME = "models/gemini-flash-latest"
-HAS_VALID_KEY = False
-model = None
+current_api_key_index = 0
+api_keys = []
+
+def setup_gemini_with_key(key):
+    global model, HAS_VALID_KEY, STABLE_MODEL_NAME
+    try:
+        genai.configure(api_key=key)
+        
+        # Dynamically find an available flash model
+        try:
+            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            print(f"Available models: {available_models}")
+            
+            # Priority list for selection (high quota / high availability models first)
+            for preferred in ["models/gemini-flash-latest", "models/gemini-pro-latest", "models/gemini-2.5-flash", "models/gemini-2.0-flash", "models/gemini-2.5-flash-lite"]:
+                if preferred in available_models:
+                    STABLE_MODEL_NAME = preferred
+                    break
+            else:
+                if available_models:
+                    STABLE_MODEL_NAME = available_models[0]
+        except Exception as list_err:
+            print(f"Warning: could not list models dynamically ({list_err}). Using default STABLE_MODEL_NAME.")
+            STABLE_MODEL_NAME = "models/gemini-flash-latest"
+        
+        model = genai.GenerativeModel(STABLE_MODEL_NAME)
+        HAS_VALID_KEY = True
+        print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
+        return True
+    except Exception as e:
+        print(f"Error initializing Gemini model: {e}")
+        err_msg = str(e).lower()
+        if any(x in err_msg for x in ["key", "401", "unauthorized", "api_key"]):
+            HAS_VALID_KEY = False
+        else:
+            # If it's a transient rate limit or network issue, the key itself is still configured
+            HAS_VALID_KEY = True
+            STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
+            model = genai.GenerativeModel(STABLE_MODEL_NAME)
+        return HAS_VALID_KEY
 
 def init_gemini():
-    global model, HAS_VALID_KEY, STABLE_MODEL_NAME
-    key = os.environ.get("GEMINI_API_KEY")
-    if key:
-        key = key.strip().strip("'\"")
-        try:
-            genai.configure(api_key=key)
-            
-            # Dynamically find an available flash model
-            try:
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                print(f"Available models: {available_models}")
-                
-                # Priority list for selection (high quota / high availability models first)
-                for preferred in ["models/gemini-flash-latest", "models/gemini-pro-latest", "models/gemini-2.5-flash", "models/gemini-2.0-flash", "models/gemini-2.5-flash-lite"]:
-                    if preferred in available_models:
-                        STABLE_MODEL_NAME = preferred
-                        break
-                else:
-                    if available_models:
-                        STABLE_MODEL_NAME = available_models[0]
-            except Exception as list_err:
-                print(f"Warning: could not list models dynamically ({list_err}). Using default STABLE_MODEL_NAME.")
-                STABLE_MODEL_NAME = "models/gemini-flash-latest"
-            
-            model = genai.GenerativeModel(STABLE_MODEL_NAME)
-            HAS_VALID_KEY = True
-            print(f"Dynamically selected Gemini model: {STABLE_MODEL_NAME}")
-            return True
-        except Exception as e:
-            print(f"Error initializing Gemini model: {e}")
-            err_msg = str(e).lower()
-            if any(x in err_msg for x in ["key", "401", "unauthorized", "api_key"]):
-                HAS_VALID_KEY = False
-            else:
-                # If it's a transient rate limit or network issue, the key itself is still configured
-                HAS_VALID_KEY = True
-                STABLE_MODEL_NAME = "models/gemini-2.5-flash-lite"
-                model = genai.GenerativeModel(STABLE_MODEL_NAME)
-    else:
+    global model, HAS_VALID_KEY, STABLE_MODEL_NAME, api_keys, current_api_key_index
+    
+    # Check for primary and fallback keys in environment
+    k1 = os.environ.get("GEMINI_API_KEY")
+    k2 = os.environ.get("GEMINI_API_KEY_FALLBACK")
+    k3 = os.environ.get("GEMINI_API_KEY_FALLBACK_2")
+    
+    api_keys = []
+    if k1: api_keys.append(k1.strip().strip("'\""))
+    if k2: api_keys.append(k2.strip().strip("'\""))
+    if k3: api_keys.append(k3.strip().strip("'\""))
+    
+    if not api_keys:
         HAS_VALID_KEY = False
-    return HAS_VALID_KEY
+        return False
+        
+    current_api_key_index = 0
+    return setup_gemini_with_key(api_keys[current_api_key_index])
 
 init_gemini()
 
@@ -136,22 +151,43 @@ def generate_with_retry(prompt):
     return model.generate_content(prompt)
 
 def generate_with_fallback(prompt):
-    global STABLE_MODEL_NAME, model
+    global STABLE_MODEL_NAME, model, current_api_key_index, api_keys
     
-    # Try the currently selected stable model first
+    # Try the currently selected stable model and key first
     try:
-        print(f"Attempting generation with primary model: {STABLE_MODEL_NAME}")
+        print(f"Attempting generation with primary model: {STABLE_MODEL_NAME} using key index {current_api_key_index}")
         return generate_with_retry(prompt)
     except Exception as e:
         err_msg = str(e)
         print(f"Primary model {STABLE_MODEL_NAME} failed: {err_msg}")
-        
-        # If it's an authorization/authentication issue, do not attempt fallback models
         lower_err = err_msg.lower()
-        if any(x in lower_err for x in ["key", "401", "unauthorized", "api_key"]) and "no valid api key configured" not in lower_err:
+        
+        # 1. Check if it's a quota/rate-limit issue to trigger API key rotation
+        if any(x in lower_err for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
+            print("Quota exceeded! Attempting to switch to fallback API key if available...")
+            if current_api_key_index < len(api_keys) - 1:
+                # We have a fallback key available! Switch to it.
+                current_api_key_index += 1
+                new_key = api_keys[current_api_key_index]
+                print(f"Switching to fallback API key (index {current_api_key_index})...")
+                
+                # Reconfigure Gemini and retry the request
+                if setup_gemini_with_key(new_key):
+                    try:
+                        return generate_with_retry(prompt)
+                    except Exception as fallback_e:
+                        print(f"Fallback key also failed: {fallback_e}")
+                        e = fallback_e # Overwrite original error so model fallback can try to handle it
+                        err_msg = str(e)
+                        lower_err = err_msg.lower()
+            else:
+                print("No more fallback API keys available or already using the last one.")
+        
+        # 2. If it's an authorization/authentication issue (and NOT a quota issue), don't attempt fallback models
+        if any(x in lower_err for x in ["key", "401", "unauthorized", "api_key"]) and "no valid api key configured" not in lower_err and not any(x in lower_err for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
             raise e
             
-        # Try fallback models in priority order (high availability lite models first)
+        # 3. Try fallback models in priority order (high availability lite models first)
         fallbacks = [
             "models/gemini-2.5-flash-lite",
             "models/gemini-flash-lite-latest",
@@ -181,7 +217,7 @@ def generate_with_fallback(prompt):
             except Exception as fe:
                 print(f"Fallback model {fallback_model_name} failed: {fe}")
                 
-        # If all fallbacks failed, raise the original exception
+        # If all fallbacks failed, raise the original/last exception
         raise e
 
 # 🔹 HEALTH API
@@ -241,40 +277,6 @@ IMPORTANT: Provide ONLY the requested format. Do NOT include any follow-up quest
             # Categorize the error for the user
             friendly_error = f"Fact-checking service unavailable ({error_msg})"
             lower_msg = error_msg.lower()
-            
-            # EMERGENCY PRESENTATION FALLBACK: If API is blocked by region or quota, use mock responses
-            if "location is not supported" in lower_msg or any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
-                print("Triggering Presentation Fallback Mode due to API limit/block...")
-                statement_lower = statement.lower().strip()
-                
-                # Pre-calculated responses for the UI's exact suggestions
-                mocks = {
-                    "vaccines cause autism.": "Verdict: False\nConfidence: 99%\nJustification: Extensive scientific research and multiple large-scale studies have definitively proven there is no link between vaccines and autism.",
-                    "the earth is flat.": "Verdict: False\nConfidence: 100%\nJustification: Overwhelming scientific evidence, satellite imagery, and physics confirm the Earth is an oblate spheroid.",
-                    "humans only use 10% of their brains.": "Verdict: False\nConfidence: 98%\nJustification: Neurological imaging shows that almost all parts of the brain are active, even during simple tasks or sleep.",
-                    "albert einstein failed math.": "Verdict: False\nConfidence: 95%\nJustification: Einstein was actually a mathematical prodigy and had mastered differential and integral calculus by age 15.",
-                    "goldfish have a 3-second memory.": "Verdict: False\nConfidence: 90%\nJustification: Studies have shown that goldfish can remember things for months and can even be trained to perform complex tasks.",
-                    "the great wall of china is visible from space.": "Verdict: False\nConfidence: 95%\nJustification: Astronauts have confirmed it is generally not visible to the naked eye from low Earth orbit without magnification.",
-                    "drinking 8 glasses of water a day is mandatory.": "Verdict: False\nConfidence: 85%\nJustification: Water needs vary greatly by individual and much of our daily water intake comes from food and other beverages.",
-                    "bulls are enraged by the color red.": "Verdict: False\nConfidence: 99%\nJustification: Bulls are colorblind to red. They are provoked by the movement of the matador's cape, not its color.",
-                    "napoleon was extremely short.": "Verdict: False\nConfidence: 90%\nJustification: Napoleon was actually around 5 feet 6 inches (1.68m), which was an average height for a Frenchman at the time.",
-                    "bananas grow on trees.": "Verdict: False\nConfidence: 95%\nJustification: Bananas actually grow on large herbaceous plants, not trees, as their stems do not contain true woody tissue."
-                }
-                
-                # Check if it matches a suggestion, otherwise give a generic safe response
-                if statement_lower in mocks:
-                    result = mocks[statement_lower]
-                else:
-                    result = "Verdict: Uncertain\nConfidence: 50%\nJustification: (Presentation Mode) The live AI service is currently blocked by Google in this region. This is a fallback response."
-                
-                # Save to history and return successfully
-                save_to_history({
-                    "email": email,
-                    "statement": statement,
-                    "response": result,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-                return jsonify({"result": result})
             
             if any(x in lower_msg for x in ["quota", "429", "resourceexhausted", "exhausted", "limit"]):
                 friendly_error = "API quota exceeded. Please wait a moment or try again later."
